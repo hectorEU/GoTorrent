@@ -1,9 +1,6 @@
-
-from pyactor.context import set_context, create_host, sleep, shutdown
-
 from collections import defaultdict
-
 from datetime import datetime
+
 
 class Tracker(object):
     _tell = ['announce']
@@ -19,6 +16,6 @@ class Tracker(object):
 
     def swarm_control(self):
         for peers in self.info.values():
-            for peer,time in peers.items():
-                if(datetime.now()-time==0):
+            for peer, time in peers.items():
+                if datetime.now() - time == 0:
                     peers.pop(peer)
