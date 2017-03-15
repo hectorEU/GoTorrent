@@ -1,0 +1,10 @@
+{
+    "File": {
+        "Checksum": "b3e16602839598ab3c989c1d50acb538c0eeec41b926bce84c62f0f973825de3bc0f6dd6bf762cf19b28ec2a9d237b31f44867a0446f48fb9b4cf4a410d9ab21", 
+        "Name": "ejemplo.txt", 
+        "Size": 9
+    }, 
+    "Trackers": [
+        "tracker1"
+    ]
+}

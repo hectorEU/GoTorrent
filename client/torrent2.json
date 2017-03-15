@@ -1,0 +1,10 @@
+{
+    "File": {
+        "Checksum": "d5c74588c43d7effcee68378fec3f3ace3cf95893cc7b6c1808210dd30c81d726cb67dc96e24934e353794634ae2ad1d99952950bd87898ca6a22b7ca89f2fa0", 
+        "Name": "bitarray-0.8.1.tar.gz", 
+        "Size": 46875
+    }, 
+    "Trackers": [
+        "tracker1"
+    ]
+}
