@@ -100,6 +100,15 @@ class Peer(object):
             if file is not None:
                 file.close()
 
+
+    def pull(self, chunk_id, file_name):
+        torrent = self.torrents[file_name]
+        if torrent is None or (torrent.file.chunk_map[chunk_id] is True) or torrent.completed:
+            return
+
+
+
+
     # **********************************
 
 
@@ -124,8 +133,38 @@ class PushPeer(Peer):
 
 
 class PullPeer(Peer):
+
+    _tell = ["active_thread", "set_chunk"]
+    _ask = ["get_chunk"]
+
     def __init__(self):
-        Peer.__init__(self)
+        super(PullPeer, self).__init__()
+
+    def active_thread(self):
+        for torrent in self.torrents.values():
+            # Critical section with update_peers
+            if len(torrent.peers) <= 1:     # Not itself
+                return
+
+            for peer in torrent.peers:
+
+                #Just in case
+                if peer == self:
+                    return
+
+                #pick a possible first chunk index
+                chunk_index = random.randint(0, torrent.file.size - 2)  # Ignore EOF1
+                while torrent.file.chunk_map[chunk_index]:
+                    chunk_index = random.randint(0, torrent.file.size - 2)  # Ignore EOF1
+
+                file_name = torrent.file.name
+                chunk_data = peer.torrents[file_name].get_chunk(chunk_index)
+                if not chunk_data: # if not false then a valid value
+                    print self.id + " there's no chunk with index " + str(chunk_index) + " at peer " + peer.actor.url
+                else:
+                    torrent.set_chunk(chunk_data)
+                    print self.id + " pulled " + str(chunk_index) + " " + torrent.file.get_chunk(
+                        chunk_index) + " from " + peer.actor.url
 
 
 class PushPullPeer(PushPeer, PullPeer):

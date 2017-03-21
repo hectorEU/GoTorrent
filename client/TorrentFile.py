@@ -32,16 +32,20 @@ class TorrentFile(object):
             return False
 
     def get_chunk(self, chunk_index):
-        file = open(self.path, "r")
-        file.seek(chunk_index)
-        chunk = file.read(1)
-        file.close()
-        return chunk
+        if self.chunk_map[chunk_index]:
+            file = open(self.path, "r")
+            file.seek(chunk_index)
+            chunk = file.read(1)
+            file.close()
+            return chunk
+        else:
+            return False
 
     def set_chunk(self, chunk_index, chunk_data):
         file = os.open(self.path, os.O_RDWR)
         m = mmap.mmap(file, 0)
         m[chunk_index] = chunk_data
+        self.chunk_map[chunk_index] = True
         os.close(file)
 
     def get_json(self, field=""):
