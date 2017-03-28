@@ -4,6 +4,8 @@ import random
 from abc import ABCMeta
 from datetime import datetime, timedelta
 
+from Gui import Gui
+
 from pyactor.context import set_context, create_host, serve_forever
 
 from Tracker import Tracker
@@ -137,6 +139,8 @@ if __name__ == "__main__":
     if not found:
         print "Missing package bitarray https://pypi.python.org/pypi/bitarray"
 
+    root = Gui()
+
     set_context()
     host = create_host()
 
@@ -146,8 +150,10 @@ if __name__ == "__main__":
     # tracker2 = host.spawn("tracker2", Tracker)
     # tracker2.run()
 
-    t1 = Torrent("torrent2.json")
-    t2 = Torrent("torrent2.json")
+    t1 = Torrent("torrent1.json")
+
+    t2 = Torrent("torrent1.json")
+    root.add_torrent(t1)
     #t2 = Torrent("torrent2.json")
 
     t1.refresh_metadata()
@@ -166,4 +172,5 @@ if __name__ == "__main__":
     #sleep(15)
     #host.stop_actor("peer2")
 
+    root.mainloop()
     serve_forever()
