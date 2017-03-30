@@ -1,10 +1,10 @@
 {
     "File": {
-        "Checksum": "b3e16602839598ab3c989c1d50acb538c0eeec41b926bce84c62f0f973825de3bc0f6dd6bf762cf19b28ec2a9d237b31f44867a0446f48fb9b4cf4a410d9ab21", 
-        "Name": "ejemplo.txt", 
-        "Size": 9
-    }, 
-    "Trackers": [
-        "tracker1"
-    ]
+      "Checksum": "41f256021aee6f8148d542ad5237d1b17c958befa60e6f07aff74b484a4280d1cbf5f85d68d236dabce0f5c6d68bec6a743a3d0bdb7ec4c12e110a2546ab3999",
+      "Name": "example.txt",
+      "Size": 5
+    },
+  "Trackers": [
+    "tracker1"
+  ]
 }

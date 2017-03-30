@@ -1,15 +1,13 @@
 import abc
 import imp
-import random
+import os
 from abc import ABCMeta
-from datetime import datetime, timedelta
-
-from Gui import Gui
 
 from pyactor.context import set_context, create_host, serve_forever
 
 from Tracker import Tracker
 from client.Torrent import Torrent
+from output import _print, _error
 
 try:
     imp.find_module('bitarray')
@@ -20,8 +18,8 @@ except ImportError:
 
 class Peer(object):
     __metaclass__ = ABCMeta  # Abstract class
-    _tell = ["active_thread", "announce", "update_peers", "push", "run", "add_torrent", "remove_torrent", "get_files"]
-    _ask = []
+    _tell = ["push", "add_torrent", "remove_torrent", "run", "announce", "update_peers", "active_thread"]
+    _ask = ["pull"]
 
     def __init__(self):
         self.gossip_cycle = 1
@@ -34,30 +32,38 @@ class Peer(object):
     def active_thread(self):
         raise NotImplementedError("Subclass must implement abstract method")
 
-    # Don't override
+    # Announces ownership of every torrent to every tracker
     def announce(self):
         for file_name, torrent in self.torrents.items():
             for tracker in torrent.trackers:
                 tracker.announce(file_name, self.proxy)
 
-    # Don't override
+    # Update active peers from the swarm ************************
     def update_peers(self):
         for file_name, torrent in self.torrents.items():
-            torrent.peers = []
+            torrent.peers = []  # Resets torrent peers
             for tracker in torrent.trackers:
-                future = tracker.get_peers(file_name, future=True)
-                future.add_callback("update_peers_callback")
+                future = tracker.get_peers(file_name, future=True)  # Performs a non-blocking call
+                future.add_callback("update_peers_callback")  # Executes callback when Tracker returns
 
     def update_peers_callback(self, future):
-        if future.result() is None:
+        file_name = future.result()[0]
+        peers = future.result()[1]
+        if peers is None or len(peers) == 1:  # Avoid lone peer in swarm
             return
-        self.torrents[future.result()[0]].peers += future.result()[1]
-        print self.id + " has received peers:  " + str(map(lambda proxy: proxy.actor.id, future.result()[1]))
+        self.torrents[file_name].peers += peers  # Sum up peers from all trackers
+        self.torrents[file_name].peers.remove(self.proxy)
+        _print(self, "knows these peers: " + str(map(lambda proxy: proxy.actor.id, self.torrents[file_name].peers)))
 
-    def run(self, download_folder=""):
-        self.download_folder = download_folder
-        for torrent in self.torrents.values():
-            torrent.completed = torrent.file.initial_status(self.download_folder)
+    # ***********************************************************
+
+    # Activate peer
+    def run(self, download_folder="./"):
+        self.download_folder = download_folder  # Sets main download folder
+        if not os.path.exists(self.download_folder):
+            os.makedirs(self.download_folder)
+        for torrent in self.torrents.values():  # Initializes every tracker
+            torrent.file.initial_status(self.download_folder)
             torrent.trackers = [self.host.lookup(tracker) for tracker in torrent.file.get_json("Trackers")]
 
         self.loop1 = self.host.interval(self.announce_timeout, self.proxy, "announce")
@@ -66,6 +72,7 @@ class Peer(object):
 
     def add_torrent(self, torrent):
         if torrent.file.name in self.torrents.keys():
+            # If torrent already exists, add trackers
             self.torrents[torrent.file.name].trackers += torrent.trackers
             # Remove duplicated trackers
             self.torrents[torrent.file.name].trackers = list(set(self.torrents[torrent.file.name].trackers))
@@ -75,110 +82,86 @@ class Peer(object):
     def remove_torrent(self, torrent):
         self.torrents.pop(torrent)
 
-    def choose_random_peer(self, peers):
-        candidate = peers[random.randint(0, len(peers) - 1)]
-        while candidate == self.proxy:
-            candidate = peers[random.randint(0, len(peers) - 1)]
-        return candidate
-
-    def get_files(self):
-        return self.torrents.keys()
-
-    # Public actor methods ***************
+    # Public actor methods ******************************
+    # Receive chunk_data
     def push(self, chunk_id, chunk_data, file_name):
         torrent = self.torrents[file_name]
-        if torrent is None or (torrent.file.chunk_map[chunk_id] is True) or torrent.completed:
+        if torrent is None or torrent.file.completed:  # Filter unwanted chunks
             return
-
-        file = None
         try:
             torrent.file.set_chunk(chunk_id, chunk_data)
-            torrent.update(chunk_id)
-        except (IOError, IndexError) as error:
-            print "Error on chunk writing"
-            return
+            torrent.update()
+        except (IndexError, TypeError):
+            _error(self, "invalid push, chunk index out of file bounds or corrupt data")
 
-        finally:
-            if file is not None:
-                file.close()
-
-
+    # Send chunk_data
     def pull(self, chunk_id, file_name):
         torrent = self.torrents[file_name]
-        if torrent is None or (torrent.file.chunk_map[chunk_id] is True) or torrent.completed:
-            return
+        if torrent is not None:  # If this peer is in the swarm, "pull" should be called with correct file_name
+            return file_name, chunk_id, torrent.file.get_chunk(chunk_id)
+        return file_name, False
 
-
-
-
-    # **********************************
+        # ***********************************************
 
 
 class PushPeer(Peer):
-    _tell = ["active_thread", "announce", "update_peers", "push", "run", "add_torrent", "remove_torrent", "get_files"]
-    _ask = []
-
     def __init__(self):
         super(PushPeer, self).__init__()
 
     def active_thread(self):
         for torrent in self.torrents.values():
-            # Critical section with update_peers
-            if len(torrent.peers) <= 1:     # Not itself
-                return
-            p = self.choose_random_peer(torrent.peers)
-            # End of critical section
-            chunk_index = random.randint(0, torrent.file.size-2)    # Ignore EOF
-            if torrent.file.chunk_map[chunk_index]:     # If valid chunk
-                p.push(chunk_index, torrent.file.get_chunk(chunk_index), torrent.file.name)
-                print self.id + " pushing " + str(chunk_index) + " " + torrent.file.get_chunk(chunk_index) + " to " + p.actor.url
+            if torrent.file.downloaded == 0:
+                continue  # If peer has no content to disseminate from this torrent, try next
+            chunk_id = torrent.file.get_random_chunk_id()
+            chunk_data = torrent.file.get_chunk(chunk_id)
+            while not chunk_data:  # Loop until valid chunk found
+                chunk_id = torrent.file.get_random_chunk_id()
+                chunk_data = torrent.file.get_chunk(chunk_id)
+            for peer in torrent.peers:  # Shares this chunk among known peers
+                peer.push(chunk_id, chunk_data, torrent.file.name)
+                _print(self, "pushing " + str(chunk_id) + " " + chunk_data + " to " + peer.actor.url)
 
 
 class PullPeer(Peer):
-
-    _tell = ["active_thread", "set_chunk"]
-    _ask = ["get_chunk"]
-
     def __init__(self):
         super(PullPeer, self).__init__()
 
     def active_thread(self):
         for torrent in self.torrents.values():
-            # Critical section with update_peers
-            if len(torrent.peers) <= 1:     # Not itself
-                return
-
             for peer in torrent.peers:
+                if torrent.file.completed:
+                    break  # Torrent complete, ask for chunks of incomplete torrents
+                chunk_id = torrent.file.get_random_chunk_id()
+                while torrent.file.chunk_map[chunk_id]:  # Loop until an empty chunk is found
+                    chunk_id = torrent.file.get_random_chunk_id()
+                future = peer.pull(chunk_id, torrent.file.name, future=True)
+                future.add_callback("pull_callback")
+                _print(self, "polling " + str(chunk_id) + " from " + peer.actor.url)
 
-                #Just in case
-                if peer == self:
-                    return
-
-                #pick a possible first chunk index
-                chunk_index = random.randint(0, torrent.file.size - 2)  # Ignore EOF1
-                while torrent.file.chunk_map[chunk_index]:
-                    chunk_index = random.randint(0, torrent.file.size - 2)  # Ignore EOF1
-
-                file_name = torrent.file.name
-                chunk_data = peer.torrents[file_name].get_chunk(chunk_index)
-                if not chunk_data: # if not false then a valid value
-                    print self.id + " there's no chunk with index " + str(chunk_index) + " at peer " + peer.actor.url
-                else:
-                    torrent.set_chunk(chunk_data)
-                    print self.id + " pulled " + str(chunk_index) + " " + torrent.file.get_chunk(
-                        chunk_index) + " from " + peer.actor.url
+    def pull_callback(self, future):
+        file_name = future.result()[0]
+        chunk_id = future.result()[1]
+        chunk_data = future.result()[2]
+        if not chunk_data:
+            return
+        self.torrents[file_name].file.set_chunk(chunk_id, chunk_data)
+        self.torrents[file_name].update()
+        _print(self, "has pulled: " + chunk_data + " for file: " + file_name)
 
 
 class PushPullPeer(PushPeer, PullPeer):
     def __init__(self):
-        Peer.__init__(self)
+        super(PushPullPeer, self).__init__()
+
+    def active_thread(self):
+        super(PushPullPeer, self).active_thread()
 
 
 if __name__ == "__main__":
     if not found:
         print "Missing package bitarray https://pypi.python.org/pypi/bitarray"
 
-    root = Gui()
+    # root = Gui()
 
     set_context()
     host = create_host()
@@ -192,24 +175,22 @@ if __name__ == "__main__":
     t1 = Torrent("torrent1.json")
 
     t2 = Torrent("torrent1.json")
-    root.add_torrent(t1)
-    #t2 = Torrent("torrent2.json")
+    # root.add_torrent(t1)
+    # t2 = Torrent("torrent2.json")
 
-    t1.refresh_metadata()
-
-    c1 = host.spawn("peer1", PushPeer)
+    c1 = host.spawn("peer1", PushPullPeer)
     c1.add_torrent(t1)
     # c1.add_torrent(t2)
 
-    c2 = host.spawn("peer2", PushPeer)
+    c2 = host.spawn("peer2", PushPullPeer)
     c2.add_torrent(t2)
     # c2.add_torrent(t2)
 
-    c1.run("./Descargas")
+    c1.run("Descargas")
     c2.run()
 
-    #sleep(15)
-    #host.stop_actor("peer2")
+    # sleep(15)
+    # host.stop_actor("peer2")
 
-    root.mainloop()
+    # root.mainloop()
     serve_forever()
