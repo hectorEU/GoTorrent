@@ -3,7 +3,7 @@ import imp
 import os
 from abc import ABCMeta
 
-from pyactor.context import set_context, create_host, serve_forever
+from pyactor.context import set_context, create_host, serve_forever, interval
 
 from Tracker import Tracker
 from client.Torrent import Torrent
@@ -66,9 +66,9 @@ class Peer(object):
             torrent.file.initial_status(self.download_folder)
             torrent.trackers = [self.host.lookup(tracker) for tracker in torrent.file.get_json("Trackers")]
 
-        self.loop1 = self.host.interval(self.announce_timeout, self.proxy, "announce")
-        self.loop2 = self.host.interval(self.discovery_period, self.proxy, "update_peers")
-        self.loop3 = self.host.interval(self.gossip_cycle, self.proxy, "active_thread")
+        self.loop1 = interval(self.host, self.announce_timeout, self.proxy, "announce")
+        self.loop2 = interval(self.host, self.discovery_period, self.proxy, "update_peers")
+        self.loop3 = interval(self.host, self.gossip_cycle, self.proxy, "active_thread")
 
     def add_torrent(self, torrent):
         if torrent.file.name in self.torrents.keys():
@@ -119,7 +119,7 @@ class PushPeer(Peer):
                 chunk_data = torrent.file.get_chunk(chunk_id)
             for peer in torrent.peers:  # Shares this chunk among known peers
                 peer.push(chunk_id, chunk_data, torrent.file.name)
-                _print(self, "pushing " + str(chunk_id) + " " + chunk_data + " to " + peer.actor.url)
+                _print(self, "pushing ID:" + str(chunk_id) + " <" + chunk_data + "> to " + peer.actor.url + " from file: " + torrent.file.name)
 
 
 class PullPeer(Peer):
@@ -136,7 +136,7 @@ class PullPeer(Peer):
                     chunk_id = torrent.file.get_random_chunk_id()
                 future = peer.pull(chunk_id, torrent.file.name, future=True)
                 future.add_callback("pull_callback")
-                _print(self, "polling " + str(chunk_id) + " from " + peer.actor.url)
+                _print(self, "asking for ID:" + str(chunk_id) + " to " + peer.actor.url + " for file: " + torrent.file.name)
 
     def pull_callback(self, future):
         file_name = future.result()[0]
@@ -146,7 +146,7 @@ class PullPeer(Peer):
             return
         self.torrents[file_name].file.set_chunk(chunk_id, chunk_data)
         self.torrents[file_name].update()
-        _print(self, "has pulled: " + chunk_data + " for file: " + file_name)
+        _print(self, "has pulled: ID:" + str(chunk_id) + " -> <" + chunk_data + "> for file: " + file_name)
 
 
 class PushPullPeer(PushPeer, PullPeer):
@@ -154,7 +154,8 @@ class PushPullPeer(PushPeer, PullPeer):
         super(PushPullPeer, self).__init__()
 
     def active_thread(self):
-        super(PushPullPeer, self).active_thread()
+        for parent in self.__class__.__bases__:
+            parent.active_thread(self)
 
 
 if __name__ == "__main__":
@@ -165,29 +166,31 @@ if __name__ == "__main__":
 
     set_context()
     host = create_host()
-
     tracker = host.spawn("tracker1", Tracker)
     tracker.run()
 
     # tracker2 = host.spawn("tracker2", Tracker)
     # tracker2.run()
 
-    t1 = Torrent("torrent1.json")
+    t1 = Torrent("word.json")
+    t2 = Torrent("sentence.json")
+    t3 = Torrent("paragraph.json")
 
-    t2 = Torrent("torrent1.json")
     # root.add_torrent(t1)
     # t2 = Torrent("torrent2.json")
 
-    c1 = host.spawn("peer1", PushPullPeer)
+    c1 = host.spawn("Andrea_Peer", PushPullPeer)
     c1.add_torrent(t1)
-    # c1.add_torrent(t2)
 
-    c2 = host.spawn("peer2", PushPullPeer)
-    c2.add_torrent(t2)
-    # c2.add_torrent(t2)
+    c2 = host.spawn("Hector_Peer", PushPullPeer)
+    c2.add_torrent(t3)
 
-    c1.run("Descargas")
-    c2.run()
+    c3 = host.spawn("Clara_Peer", PushPullPeer)
+    c3.add_torrent(t2)
+
+    c1.run("Andrea")
+    c2.run("Hector")
+    c3.run("Clara")
 
     # sleep(15)
     # host.stop_actor("peer2")
