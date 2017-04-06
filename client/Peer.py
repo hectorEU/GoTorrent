@@ -172,9 +172,7 @@ if __name__ == "__main__":
     # tracker2 = host.spawn("tracker2", Tracker)
     # tracker2.run()
 
-    t1 = Torrent("word.json")
-    t2 = Torrent("sentence.json")
-    t3 = Torrent("paragraph.json")
+    t1 = Torrent("sentence.json")
 
     # root.add_torrent(t1)
     # t2 = Torrent("torrent2.json")
