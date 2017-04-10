@@ -2,6 +2,8 @@ import random
 from collections import defaultdict
 from datetime import datetime, timedelta
 
+from pyactor.context import interval
+
 from client.output import _print
 
 
@@ -48,4 +50,4 @@ class Tracker(object):
 
     # Activates tracker
     def run(self):
-        self.loop1 = self.host.interval(self.announce_timeout, self.proxy, "update")
+        self.loop1 = interval(self.host, self.announce_timeout, self.proxy, "update")
