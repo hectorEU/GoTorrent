@@ -26,9 +26,7 @@ class TorrentFile(object):
 
     # Peer instance call for full initialization
     # Parameters: folder -> download directory
-    def initial_status(self, folder):
-        self.download_path = os.path.join(folder, self.download_path)  # Updates download file path
-
+    def initial_status(self):
         if os.path.exists(self.download_path) and self.validate_checksum():  # File integrity check
             self.downloaded = self.size  # Set downloaded chunks to number of total chunks (size)
             self.chunk_map.setall(True)  # Fill bitmap with 1

@@ -1,0 +1,8 @@
+{
+    "File": {
+        "Checksum": "72f6a6fd841f6e90b6a7046f34a519f9e90f783f24157d5ffcdd0e9660314443dddfa2a05b3b0d42323801adac81d907799379dab446dcf3d69d5d62163a18e7", 
+        "Name": "frase.txt", 
+        "Size": 41
+    }, 
+    "Trackers": ["tracker1", "tracker2", "tracker3"]
+}

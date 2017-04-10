@@ -19,17 +19,16 @@ class Tracker(object):
 
     # Public actor methods *************************
     def announce(self, file_name, peer_ref):
-        if peer_ref.actor.url not in self.last_announces.keys():
-            self.index[file_name] += [peer_ref]  # First time announce, add member to swarm
+        if peer_ref not in self.index[file_name]:
+            self.index[file_name].append(peer_ref)  # First time announce, add member to swarm
 
         self.last_announces[peer_ref.actor.url] = datetime.now()  # Keep announce timestamp
         _print(self, "Subscribed: " + peer_ref.actor.url + " in: " + file_name)
 
     def get_peers(self, file_name):
         if file_name not in self.index:  # Control invalid requests from members out of the swarm
-            peers = None
-        else:
-            peers = self.index[file_name]
+            return file_name, None
+        peers = self.index[file_name]
         return (file_name, random.sample(peers,  # Select a random sample of connected peers
                                          self.peers_offer if self.peers_offer <= len(peers) else len(peers)))
 
