@@ -1,0 +1,12 @@
+{
+  "File": {
+    "Checksum": "282dba17c574fdcc2b75df13605135fdb528ccaa8c1daff74705a2b0d6dc229dff2f2b0c6abcb7c737fa49ff1325a1aab7808834112851aa1af26dda9407d166",
+    "Name": "parrafo.txt",
+    "Size": 130
+  },
+  "Trackers": [
+    "tracker1",
+    "tracker2",
+    "tracker3"
+  ]
+}

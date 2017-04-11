@@ -1,15 +1,17 @@
 import random
+import subprocess
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from pyactor.context import interval
+from pyactor.context import interval, set_context, create_host, serve_forever
 
-from client.output import _print
+from output import _print
 
 
 class Tracker(object):
     _tell = ["announce", "update", "run"]
     _ask = ["get_peers"]
+    _ref = ["announce", "get_peers"]
 
     def __init__(self, peers_offer=3, announce_timeout=12):
         self.index = defaultdict(list)  # Key: File name; Value: List of peer proxies
@@ -43,10 +45,21 @@ class Tracker(object):
         # Remove inactive peers from self.index
         for file_name, peers in self.index.items():
             for peer in peers:
-                if peer.actor.url not in self.last_announces.keys():
+                if peer.actor.url not in self.last_announces:
                     self.index[file_name].remove(peer)
                     _print(self, "Unsubscribed: " + peer.actor.url + " of: " + file_name)
 
     # Activates tracker
     def run(self):
         self.loop1 = interval(self.host, self.announce_timeout, self.proxy, "update")
+
+
+if __name__ == "__main__":
+    subprocess.call("./freeTrackerPorts.sh", shell=True)
+    set_context()
+    h1 = create_host("http://127.0.0.1:7969/")
+
+    tracker = h1.spawn("tracker1", Tracker)
+    tracker.run()
+
+    serve_forever()

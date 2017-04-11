@@ -1,0 +1,10 @@
+{
+  "File": {
+    "Checksum": "346664b42f38af45e120a23d42652250adde32af816a4bd82fb800796f8005d729ed7c8cef2d88b6fd868b5befa5ca3d16621666883b15e80c6727bd4b46a18c",
+    "Name": "palabra.txt",
+    "Size": 8
+  },
+  "Trackers": [
+    "http://127.0.0.1:7969/tracker1"
+  ]
+}

@@ -2,7 +2,7 @@ import json
 import os
 from datetime import datetime
 
-from client.TorrentFile import TorrentFile
+from TorrentFile import TorrentFile
 
 
 class Torrent(object):

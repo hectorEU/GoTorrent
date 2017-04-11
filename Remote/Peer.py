@@ -1,12 +1,12 @@
 import abc
 import imp
 import os
+import subprocess
 from abc import ABCMeta
 
-from pyactor.context import set_context, create_host, serve_forever, interval, sleep
+from pyactor.context import set_context, create_host, serve_forever, interval
 
-from Tracker import Tracker
-from client.Torrent import Torrent
+from Torrent import Torrent
 from output import _print, _error
 
 try:
@@ -18,7 +18,8 @@ except ImportError:
 
 class Peer(object):
     __metaclass__ = ABCMeta  # Abstract class
-    _tell = ["push", "add_torrent", "remove_torrent", "run", "announce", "update_peers", "active_thread", "set_download_folder"]
+    _tell = ["push", "add_torrent", "remove_torrent", "run", "announce", "update_peers", "active_thread",
+             "set_download_folder"]
     _ask = ["pull"]
 
     def __init__(self):
@@ -43,8 +44,9 @@ class Peer(object):
         for file_name, torrent in self.torrents.items():
             torrent.peers = []  # Resets torrent peers
             for tracker in torrent.trackers:
-                tracker.get_peers(file_name, future=True).add_callback("update_peers_callback") # Performs a non-blocking call
-                  # Executes callback when Tracker returns
+                tracker.get_peers(file_name, future=True).add_callback(
+                    "update_peers_callback")  # Performs a non-blocking call
+                # Executes callback when Tracker returns
 
     def update_peers_callback(self, future):
         file_name = future.result()[0]
@@ -56,9 +58,10 @@ class Peer(object):
             peers.remove(self.proxy)
 
         self.torrents[file_name].peers += peers  # Sum up peers from all trackers
-        self.torrents[file_name].peers = list(set(self.torrents[file_name].peers))
+        self.torrents[file_name].peers = list(set(self.torrents[file_name].peers))  # Unique list
 
-        _print(self, "knows these peers: " + str(map(lambda proxy: proxy.actor.id, self.torrents[file_name].peers)) + " for file: " + file_name)
+        _print(self, "knows these peers: " + str(
+            map(lambda proxy: proxy.actor.id, self.torrents[file_name].peers)) + " for file: " + file_name)
 
     # ***********************************************************
 
@@ -69,7 +72,7 @@ class Peer(object):
         self.loop3 = interval(self.host, self.gossip_cycle, self.proxy, "active_thread")
 
     def add_torrent(self, torrent):
-        if torrent.file.name in self.torrents.keys():
+        if torrent.file.name in self.torrents:
             # If torrent already exists, add trackers
             self.torrents[torrent.file.name].trackers += torrent.trackers
             # Remove duplicated trackers
@@ -77,7 +80,8 @@ class Peer(object):
         else:
             torrent.file.download_path = os.path.join(self.download_folder, torrent.file.name)
             torrent.file.initial_status()
-            torrent.trackers = [self.host.lookup(tracker) for tracker in torrent.file.get_json("Trackers")]
+            torrent.trackers = [self.host.lookup_url(tracker, "Tracker", "Tracker") for tracker in
+                                torrent.file.get_json("Trackers")]
             self.torrents[torrent.file.name] = torrent
 
     def remove_torrent(self, torrent):
@@ -102,12 +106,11 @@ class Peer(object):
 
     # Send chunk_data
     def pull(self, chunk_id, file_name):
-        torrent = self.torrents[file_name]
-        if torrent is not None:  # If this peer is in the swarm, "pull" should be called with correct file_name
-            return file_name, chunk_id, torrent.file.get_chunk(chunk_id)
+        if file_name in self.torrents:  # If this peer is in the swarm, "pull" should be called with correct file_name
+            return file_name, chunk_id, self.torrents[file_name].file.get_chunk(chunk_id)
         return file_name, False
 
-    # ***********************************************
+        # ***********************************************
 
 
 class PushPeer(Peer):
@@ -117,7 +120,7 @@ class PushPeer(Peer):
     def active_thread(self):
         for torrent in self.torrents.values():
             if torrent.file.downloaded == 0:
-                continue  # If peer has no content to disseminate from this torrent, try next
+                continue  # If peer has no content to disseminate from this torrent, try next one
             chunk_id = torrent.file.get_random_chunk_id()
             chunk_data = torrent.file.get_chunk(chunk_id)
             while not chunk_data:  # Loop until valid chunk found
@@ -125,7 +128,8 @@ class PushPeer(Peer):
                 chunk_data = torrent.file.get_chunk(chunk_id)
             for peer in torrent.peers:  # Shares this chunk among known peers
                 peer.push(chunk_id, chunk_data, torrent.file.name)
-                _print(self, "pushing ID:" + str(chunk_id) + " <" + chunk_data + "> to " + peer.actor.url + " from file: " + torrent.file.name)
+                _print(self, "pushing ID:" + str(
+                    chunk_id) + " <" + chunk_data + "> to " + peer.actor.url + " from file: " + torrent.file.name)
 
 
 class PullPeer(Peer):
@@ -142,7 +146,8 @@ class PullPeer(Peer):
                     chunk_id = torrent.file.get_random_chunk_id()
                 future = peer.pull(chunk_id, torrent.file.name, future=True)
                 future.add_callback("pull_callback")
-                _print(self, "asking for ID:" + str(chunk_id) + " to " + peer.actor.url + " for file: " + torrent.file.name)
+                _print(self,
+                       "asking for ID:" + str(chunk_id) + " to " + peer.actor.url + " for file: " + torrent.file.name)
 
     def pull_callback(self, future):
         file_name = future.result()[0]
@@ -168,18 +173,20 @@ if __name__ == "__main__":
     if not found:
         print "Missing package bitarray https://pypi.python.org/pypi/bitarray"
 
+    subprocess.call("./freePeerPorts.sh", shell=True)
     set_context()
-    host = create_host()
-    tracker = host.spawn("tracker1", Tracker)
-    tracker2 = host.spawn("tracker2", Tracker)
-    tracker3 = host.spawn("tracker3", Tracker)
-    tracker.run()
-    tracker2.run()
-    tracker3.run()
 
-    c1 = host.spawn("Andrea_Peer", PushPullPeer)
-    c2 = host.spawn("Hector_Peer", PushPullPeer)
-    c3 = host.spawn("Clara_Peer", PushPullPeer)
+    h1 = create_host("http://127.0.0.1:6666/")
+    c1 = h1.spawn("Andrea_Peer", PushPeer)
+    c1.run()
+    c1.add_torrent(Torrent("palabra.json"))
+
+    '''h2 = create_host("http://127.0.0.1:7777/peer_host")
+    h3 = create_host("http://127.0.0.1:8888/peer_host")
+
+    c1 = h1.spawn("Andrea_Peer", PushPullPeer)
+    c2 = h2.spawn("Hector_Peer", PushPullPeer)
+    c3 = h3.spawn("Clara_Peer", PushPullPeer)
 
     c1.run()
     c2.run()
@@ -199,6 +206,6 @@ if __name__ == "__main__":
 
     c1.add_torrent(Torrent("parrafo.json"))
     c2.add_torrent(Torrent("parrafo.json"))
-    c3.add_torrent(Torrent("parrafo.json"))
+    c3.add_torrent(Torrent("parrafo.json"))'''
 
     serve_forever()
