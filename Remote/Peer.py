@@ -19,7 +19,7 @@ except ImportError:
 class Peer(object):
     __metaclass__ = ABCMeta  # Abstract class
     _tell = ["push", "add_torrent", "remove_torrent", "run", "announce", "update_peers", "active_thread",
-             "set_download_folder", "update_peers_callback"]
+             "set_download_folder"]
     _ask = ["pull"]
 
     def __init__(self):
@@ -176,7 +176,7 @@ if __name__ == "__main__":
     subprocess.call("./freePeerPorts.sh", shell=True)
     set_context()
 
-    h1 = create_host("http://192.168.1.114:6666/")
+    h1 = create_host("http://127.0.0.1:6666/")
     c1 = h1.spawn("Andrea_Peer", PushPeer)
     c1.run()
     c1.add_torrent(Torrent("palabra.json"))
