@@ -11,7 +11,6 @@ from output import _print
 class Tracker(object):
     _tell = ["announce", "update", "run"]
     _ask = ["get_peers"]
-    _ref = ["announce", "get_peers"]
 
     def __init__(self, peers_offer=3, announce_timeout=12):
         self.index = defaultdict(list)  # Key: File name; Value: List of peer proxies
@@ -24,8 +23,8 @@ class Tracker(object):
         if peer_ref not in self.index[file_name]:
             self.index[file_name].append(peer_ref)  # First time announce, add member to swarm
 
-        self.last_announces[peer_ref.actor.url] = datetime.now()  # Keep announce timestamp
-        _print(self, "Subscribed: " + peer_ref.actor.url + " in: " + file_name)
+        self.last_announces[peer_ref.url] = datetime.now()  # Keep announce timestamp
+        _print(self, "Subscribed: " + peer_ref.url + " in: " + file_name)
 
     def get_peers(self, file_name):
         if file_name not in self.index:  # Control invalid requests from members out of the swarm
@@ -45,9 +44,9 @@ class Tracker(object):
         # Remove inactive peers from self.index
         for file_name, peers in self.index.items():
             for peer in peers:
-                if peer.actor.url not in self.last_announces:
+                if peer.url not in self.last_announces:
                     self.index[file_name].remove(peer)
-                    _print(self, "Unsubscribed: " + peer.actor.url + " of: " + file_name)
+                    _print(self, "Unsubscribed: " + peer.url + " of: " + file_name)
 
     # Activates tracker
     def run(self):

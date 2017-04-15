@@ -21,7 +21,6 @@ class Peer(object):
     _tell = ["push", "add_torrent", "remove_torrent", "run", "announce", "update_peers", "active_thread",
              "set_download_folder", "update_peers_callback"]
     _ask = ["pull"]
-    _ref = ["update_peers_callback"]
 
     def __init__(self):
         self.gossip_cycle = 1
@@ -130,7 +129,7 @@ class PushPeer(Peer):
             for peer in torrent.peers:  # Shares this chunk among known peers
                 peer.push(chunk_id, chunk_data, torrent.file.name)
                 _print(self, "pushing ID:" + str(
-                    chunk_id) + " <" + chunk_data + "> to " + peer.actor.url + " from file: " + torrent.file.name)
+                    chunk_id) + " <" + chunk_data + "> to " + peer.url + " from file: " + torrent.file.name)
 
 
 class PullPeer(Peer):
@@ -148,7 +147,7 @@ class PullPeer(Peer):
                 future = peer.pull(chunk_id, torrent.file.name, future=True)
                 future.add_callback("pull_callback")
                 _print(self,
-                       "asking for ID:" + str(chunk_id) + " to " + peer.actor.url + " for file: " + torrent.file.name)
+                       "asking for ID:" + str(chunk_id) + " to " + peer.url + " for file: " + torrent.file.name)
 
     def pull_callback(self, future):
         file_name = future.result()[0]
@@ -177,7 +176,7 @@ if __name__ == "__main__":
     subprocess.call("./freePeerPorts.sh", shell=True)
     set_context()
 
-    h1 = create_host("http://192.168.1.112:6666/")
+    h1 = create_host("http://192.168.1.114:6666/")
     c1 = h1.spawn("Andrea_Peer", PushPeer)
     c1.run()
     c1.add_torrent(Torrent("palabra.json"))
