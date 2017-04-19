@@ -1,10 +1,9 @@
 import abc
 import imp
 import os
-import subprocess
 from abc import ABCMeta
 
-from pyactor.context import set_context, create_host, serve_forever, interval
+from pyactor.context import set_context, create_host, serve_forever, interval, sleep
 
 from Torrent import Torrent
 from output import _print, _error
@@ -21,6 +20,7 @@ class Peer(object):
     _tell = ["push", "add_torrent", "remove_torrent", "run", "announce", "update_peers", "active_thread",
              "set_download_folder"]
     _ask = ["pull"]
+    _ref = ["push", "pull"]
 
     def __init__(self):
         self.gossip_cycle = 1
@@ -129,7 +129,7 @@ class PushPeer(Peer):
             for peer in torrent.peers:  # Shares this chunk among known peers
                 peer.push(chunk_id, chunk_data, torrent.file.name)
                 _print(self, "pushing ID:" + str(
-                    chunk_id) + " <" + chunk_data + "> to " + peer.url + " from file: " + torrent.file.name)
+                    chunk_id) + " <" + chunk_data + "> to " + peer.actor.url + " from file: " + torrent.file.name)
 
 
 class PullPeer(Peer):
@@ -147,7 +147,7 @@ class PullPeer(Peer):
                 future = peer.pull(chunk_id, torrent.file.name, future=True)
                 future.add_callback("pull_callback")
                 _print(self,
-                       "asking for ID:" + str(chunk_id) + " to " + peer.url + " for file: " + torrent.file.name)
+                       "asking for ID:" + str(chunk_id) + " to " + peer.actor.url + " for file: " + torrent.file.name)
 
     def pull_callback(self, future):
         file_name = future.result()[0]
@@ -173,39 +173,18 @@ if __name__ == "__main__":
     if not found:
         print "Missing package bitarray https://pypi.python.org/pypi/bitarray"
 
-    subprocess.call("./freePeerPorts.sh", shell=True)
     set_context()
 
-    h1 = create_host("http://127.0.0.1:6666/")
-    c1 = h1.spawn("Andrea_Peer", PushPeer)
-    c1.run()
-    c1.add_torrent(Torrent("palabra.json"))
-
-    '''h2 = create_host("http://127.0.0.1:7777/peer_host")
-    h3 = create_host("http://127.0.0.1:8888/peer_host")
-
-    c1 = h1.spawn("Andrea_Peer", PushPullPeer)
-    c2 = h2.spawn("Hector_Peer", PushPullPeer)
-    c3 = h3.spawn("Clara_Peer", PushPullPeer)
-
-    c1.run()
-    c2.run()
-    c3.run()
-
-    c1.set_download_folder("Andrea")
-    c2.set_download_folder("Hector")
-    c3.set_download_folder("Clara")
-
-    c1.add_torrent(Torrent("palabra.json"))
+    h = create_host("http://127.0.0.1:6666/host")
+    c1 = h.spawn("Hector_Peer", PushPullPeer)
+    c2 = h.spawn("Andrea_Peer", PushPullPeer)
+    c2.set_download_folder("Andrea")
     c2.add_torrent(Torrent("palabra.json"))
-    c3.add_torrent(Torrent("palabra.json"))
+    c1.set_download_folder("Hector")
+    c1.add_torrent(Torrent("palabra.json"))
 
-    c1.add_torrent(Torrent("frase.json"))
-    c2.add_torrent(Torrent("frase.json"))
-    c3.add_torrent(Torrent("frase.json"))
-
-    c1.add_torrent(Torrent("parrafo.json"))
-    c2.add_torrent(Torrent("parrafo.json"))
-    c3.add_torrent(Torrent("parrafo.json"))'''
+    c1.run()
+    sleep(2)
+    c2.run()
 
     serve_forever()

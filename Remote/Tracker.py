@@ -1,9 +1,8 @@
 import random
-import subprocess
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from pyactor.context import interval, set_context, create_host, serve_forever
+from pyactor.context import set_context, create_host, serve_forever, interval
 
 from output import _print
 
@@ -11,6 +10,7 @@ from output import _print
 class Tracker(object):
     _tell = ["announce", "update", "run"]
     _ask = ["get_peers"]
+    _ref = ["announce", "get_peers"]
 
     def __init__(self, peers_offer=3, announce_timeout=12):
         self.index = defaultdict(list)  # Key: File name; Value: List of peer proxies
@@ -23,15 +23,15 @@ class Tracker(object):
         if peer_ref not in self.index[file_name]:
             self.index[file_name].append(peer_ref)  # First time announce, add member to swarm
 
-        self.last_announces[peer_ref.url] = datetime.now()  # Keep announce timestamp
-        _print(self, "Subscribed: " + peer_ref.url + " in: " + file_name)
+        self.last_announces[peer_ref.actor.url] = datetime.now()  # Keep announce timestamp
+        _print(self, "Subscribed: " + peer_ref.actor.url + " in: " + file_name)
 
     def get_peers(self, file_name):
         if file_name not in self.index:  # Control invalid requests from members out of the swarm
             return file_name, None
         peers = self.index[file_name]
-        return (file_name, random.sample(peers,  # Select a random sample of connected peers
-                                         self.peers_offer if self.peers_offer <= len(peers) else len(peers)))
+        return [file_name, random.sample(peers,  # Select a random sample of connected peers
+                                         self.peers_offer if self.peers_offer <= len(peers) else len(peers))]
 
     # ***********************************************
 
@@ -44,9 +44,9 @@ class Tracker(object):
         # Remove inactive peers from self.index
         for file_name, peers in self.index.items():
             for peer in peers:
-                if peer.url not in self.last_announces:
+                if peer.actor.url not in self.last_announces:
                     self.index[file_name].remove(peer)
-                    _print(self, "Unsubscribed: " + peer.url + " of: " + file_name)
+                    _print(self, "Unsubscribed: " + peer.actor.url + " of: " + file_name)
 
     # Activates tracker
     def run(self):
@@ -54,11 +54,10 @@ class Tracker(object):
 
 
 if __name__ == "__main__":
-    subprocess.call("./freeTrackerPorts.sh", shell=True)
     set_context()
-    h1 = create_host("http://127.0.0.1:7969/")
 
-    tracker = h1.spawn("tracker1", Tracker)
-    tracker.run()
+    h = create_host("http://127.0.0.1:7777")
+    t1 = h.spawn("tracker1", Tracker)
+    t1.run()
 
     serve_forever()
