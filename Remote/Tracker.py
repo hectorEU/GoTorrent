@@ -1,8 +1,10 @@
 import random
+import subprocess
 from collections import defaultdict
 from datetime import datetime, timedelta
+from random import randint
 
-from pyactor.context import set_context, create_host, serve_forever, interval
+from pyactor.context import set_context, create_host, serve_forever, interval, sleep
 
 from output import _print
 
@@ -54,10 +56,18 @@ class Tracker(object):
 
 
 if __name__ == "__main__":
+
+    subprocess.call("./freeTrackerPorts.sh", shell=True)
+
     set_context()
 
-    h = create_host("http://127.0.0.1:7777")
-    t1 = h.spawn("tracker1", Tracker)
-    t1.run()
+    sleep(2)
+
+    h = create_host("http://192.168.1.115:6969")
+    for i in range(0, 3):
+        sleep(randint(1, 4))
+        tracker = h.spawn("tracker" + str(i), Tracker)
+        tracker.run()
+        print "Tracker " + str(i) + " ready"
 
     serve_forever()
