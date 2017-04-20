@@ -1,7 +1,9 @@
 import abc
 import imp
 import os
+import subprocess
 from abc import ABCMeta
+from random import choice, randint
 
 from pyactor.context import set_context, create_host, serve_forever, interval, sleep
 
@@ -25,7 +27,7 @@ class Peer(object):
     def __init__(self):
         self.gossip_cycle = 1
         self.announce_timeout = 10
-        self.discovery_period = 2
+        self.discovery_period = 20
         self.download_folder = ""
         self.torrents = {}  # Key: File name; Value: Torrent
 
@@ -119,17 +121,17 @@ class PushPeer(Peer):
 
     def active_thread(self):
         for torrent in self.torrents.values():
-            if torrent.file.downloaded == 0:
+            if torrent.file.downloaded == 0 or not torrent.peers:
                 continue  # If peer has no content to disseminate from this torrent, try next one
             chunk_id = torrent.file.get_random_chunk_id()
             chunk_data = torrent.file.get_chunk(chunk_id)
             while not chunk_data:  # Loop until valid chunk found
                 chunk_id = torrent.file.get_random_chunk_id()
                 chunk_data = torrent.file.get_chunk(chunk_id)
-            for peer in torrent.peers:  # Shares this chunk among known peers
-                peer.push(chunk_id, chunk_data, torrent.file.name)
-                _print(self, "pushing ID:" + str(
-                    chunk_id) + " <" + chunk_data + "> to " + peer.actor.url + " from file: " + torrent.file.name)
+            peer = choice(torrent.peers)
+            peer.push(chunk_id, chunk_data, torrent.file.name)
+            _print(self, "pushing ID:" + str(
+                chunk_id) + " <" + chunk_data + "> to " + peer.actor.url + " from file: " + torrent.file.name)
 
 
 class PullPeer(Peer):
@@ -138,16 +140,16 @@ class PullPeer(Peer):
 
     def active_thread(self):
         for torrent in self.torrents.values():
-            if torrent.file.completed:
+            if torrent.file.completed or not torrent.peers:
                 continue  # Torrent complete, ask for chunks of incomplete torrents
-            for peer in torrent.peers:
+            peer = choice(torrent.peers)
+            chunk_id = torrent.file.get_random_chunk_id()
+            while torrent.file.chunk_map[chunk_id]:  # Loop until an empty chunk is found
                 chunk_id = torrent.file.get_random_chunk_id()
-                while torrent.file.chunk_map[chunk_id]:  # Loop until an empty chunk is found
-                    chunk_id = torrent.file.get_random_chunk_id()
-                future = peer.pull(chunk_id, torrent.file.name, future=True)
-                future.add_callback("pull_callback")
-                _print(self,
-                       "asking for ID:" + str(chunk_id) + " to " + peer.actor.url + " for file: " + torrent.file.name)
+            future = peer.pull(chunk_id, torrent.file.name, future=True)
+            future.add_callback("pull_callback")
+            _print(self,
+                   "asking for ID:" + str(chunk_id) + " to " + peer.actor.url + " for file: " + torrent.file.name)
 
     def pull_callback(self, future):
         file_name = future.result()[0]
@@ -173,18 +175,30 @@ if __name__ == "__main__":
     if not found:
         print "Missing package bitarray https://pypi.python.org/pypi/bitarray"
 
+    subprocess.call("./freePeerPorts.sh", shell=True)
+
     set_context()
 
-    h = create_host("http://127.0.0.1:6666/host")
-    c1 = h.spawn("Hector_Peer", PushPullPeer)
-    c2 = h.spawn("Andrea_Peer", PushPullPeer)
-    c2.set_download_folder("Andrea")
-    c2.add_torrent(Torrent("palabra.json"))
-    c1.set_download_folder("Hector")
-    c1.add_torrent(Torrent("palabra.json"))
+    h = create_host("http://192.168.1.101:6970")
 
-    c1.run()
-    sleep(2)
-    c2.run()
+    type = [PushPeer, PullPeer, PushPullPeer]
+
+    for i in range(1, 100):
+        sleep(randint(1, 5) / 10)
+        client = h.spawn("Peer" + str(i), choice(type))
+        client.set_download_folder("Peer" + str(i))
+        client.add_torrent(Torrent("palabra.json"))
+        client.add_torrent(Torrent("frase.json"))
+        client.add_torrent(Torrent("parrafo.json"))
+        client.run()
+
+    sleep(5)
+
+    genesis = h.spawn("Cracker", PushPullPeer)
+    genesis.run()
+    genesis.set_download_folder("Genesis")
+    genesis.add_torrent(Torrent("palabra.json"))
+    genesis.add_torrent(Torrent("frase.json"))
+    genesis.add_torrent(Torrent("parrafo.json"))
 
     serve_forever()

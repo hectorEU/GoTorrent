@@ -16,7 +16,7 @@ class Torrent(object):
 
     # Check whether the download has finished
     def update(self):
-        print str(self.file.downloaded) + " vs " + str(self.file.size)
+        print str(self.file.name) + " : " + str(self.file.downloaded) + " vs " + str(self.file.size)
         if self.file.downloaded == self.file.size and self.file.validate_checksum():
             self.file.completed = True
             print "Torrent: " + self.file.name + " has been completed!"
