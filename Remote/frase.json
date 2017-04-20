@@ -5,6 +5,8 @@
     "Size": 41
   },
   "Trackers": [
-    "http://127.0.0.1:7969/tracker1"
+    "tracker1",
+    "tracker2",
+    "tracker3"
   ]
 }
