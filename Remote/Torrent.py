@@ -12,7 +12,6 @@ class Torrent(object):
         self.trackers = []
         self.last_announce = datetime.now()
         self.last_discovery = datetime.now()
-        self.stop = False
 
     # Check whether the download has finished
     def update(self):

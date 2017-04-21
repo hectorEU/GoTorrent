@@ -5,6 +5,8 @@
     "Size": 130
   },
   "Trackers": [
-    "http://192.168.1.115:6969/tracker0"
+    "tracker1",
+    "tracker2",
+    "tracker3"
   ]
 }
