@@ -5,7 +5,7 @@ import subprocess
 from abc import ABCMeta
 from random import choice
 
-from pyactor.context import set_context, create_host, serve_forever, interval, sleep
+from pyactor.context import set_context, create_host, interval, sleep
 
 from Torrent import Torrent
 from output import _print, _error
@@ -65,7 +65,7 @@ class Peer(object):
         self.torrents[file_name].peers = list(set(self.torrents[file_name].peers))  # Unique list
 
         _print(self, "knows these peers: " + str(
-            map(lambda proxy: proxy.actor.id, self.torrents[file_name].peers)) + " for file: " + file_name)
+            map(lambda proxy: proxy.actor.url, self.torrents[file_name].peers)) + " for file: " + file_name)
 
     # ***********************************************************
 
@@ -124,7 +124,7 @@ class PushPeer(Peer):
     def active_thread(self):
         self.current_cycle += 1
         for torrent in self.torrents.values():
-            retrieve(self.current_cycle, torrent.file.name, torrent.file.downloaded * 100 / torrent.file.size)
+            retrieve(self.current_cycle, torrent.file.name, torrent.file.downloaded)
             if torrent.file.downloaded == 0 or not torrent.peers:
                 continue  # If peer has no content to disseminate from this torrent, try next one
             chunk_id = torrent.file.get_random_chunk_id()
@@ -186,16 +186,9 @@ if __name__ == "__main__":
 
     h = create_host("http://192.168.1.101:6970")
 
-    genesis = h.spawn("Cracker", PushPeer)
-    genesis.set_download_folder("Genesis")
-    genesis.add_torrent(Torrent("palabra.json"))
-    genesis.add_torrent(Torrent("frase.json"))
-    genesis.add_torrent(Torrent("parrafo.json"))
-    genesis.run()
-
     type = [PushPeer, PullPeer, PushPullPeer]
 
-    for i in range(0, 5):
+    for i in range(16, 30):
         # sleep(randint(1, 5) / 10)
         # client = h.spawn("Peer" + str(i), choice(type))
         client = h.spawn("Peer" + str(i), PushPeer)
@@ -205,8 +198,16 @@ if __name__ == "__main__":
         client.add_torrent(Torrent("parrafo.json"))
         client.run()
 
-    sleep(60 * 10)
+    for i in range(0, 5):
+        genesis = h.spawn("Genesis" + str(i), PushPeer)
+        genesis.set_download_folder("Genesis" + str(i))
+        genesis.add_torrent(Torrent("palabra.json"))
+        genesis.add_torrent(Torrent("frase.json"))
+        genesis.add_torrent(Torrent("parrafo.json"))
+        genesis.run()
 
-    export_csv()
+    while True:
+        sleep(60 * 5)
+        export_csv()
 
     serve_forever()

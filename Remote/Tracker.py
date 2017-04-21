@@ -63,8 +63,8 @@ if __name__ == "__main__":
 
     sleep(2)
 
-    h = create_host("http://192.168.1.115:6969")
-    for i in range(0, 3):
+    h = create_host("http://192.168.1.101:6969")
+    for i in range(0, 1):
         sleep(randint(1, 4))
         tracker = h.spawn("tracker" + str(i), Tracker)
         tracker.run()
