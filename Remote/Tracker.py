@@ -2,9 +2,8 @@ import random
 import subprocess
 from collections import defaultdict
 from datetime import datetime, timedelta
-from random import randint
 
-from pyactor.context import set_context, create_host, serve_forever, interval, sleep
+from pyactor.context import set_context, create_host, serve_forever, interval
 
 from output import _print
 
@@ -61,11 +60,9 @@ if __name__ == "__main__":
 
     set_context()
 
-    sleep(2)
-
     h = create_host("http://192.168.1.101:6969")
     for i in range(0, 1):
-        sleep(randint(1, 4))
+        # sleep(randint(1, 4))
         tracker = h.spawn("tracker" + str(i), Tracker)
         tracker.run()
         print "Tracker " + str(i) + " ready"

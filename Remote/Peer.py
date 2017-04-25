@@ -122,7 +122,7 @@ class PushPeer(Peer):
         super(PushPeer, self).__init__()
 
     def active_thread(self):
-        self.current_cycle += 1
+        # self.current_cycle += 1
         for torrent in self.torrents.values():
             retrieve(self.current_cycle, torrent.file.name, torrent.file.downloaded)
             if torrent.file.downloaded == 0 or not torrent.peers:
@@ -143,8 +143,9 @@ class PullPeer(Peer):
         super(PullPeer, self).__init__()
 
     def active_thread(self):
-        self.current_cycle += 1
+        # self.current_cycle += 1
         for torrent in self.torrents.values():
+            retrieve(self.current_cycle, torrent.file.name, torrent.file.downloaded)
             if torrent.file.completed or not torrent.peers:
                 continue  # Torrent complete, ask for chunks of incomplete torrents
             peer = choice(torrent.peers)
@@ -172,6 +173,7 @@ class PushPullPeer(PushPeer, PullPeer):
         super(PushPullPeer, self).__init__()
 
     def active_thread(self):
+        self.current_cycle += 1
         for parent in self.__class__.__bases__:
             parent.active_thread(self)
 
@@ -188,18 +190,18 @@ if __name__ == "__main__":
 
     type = [PushPeer, PullPeer, PushPullPeer]
 
-    for i in range(16, 30):
+    for i in range(3, 5):
         # sleep(randint(1, 5) / 10)
         # client = h.spawn("Peer" + str(i), choice(type))
-        client = h.spawn("Peer" + str(i), PushPeer)
+        client = h.spawn("Peer" + str(i), PushPullPeer)
         client.set_download_folder("Peer" + str(i))
         client.add_torrent(Torrent("palabra.json"))
         client.add_torrent(Torrent("frase.json"))
         client.add_torrent(Torrent("parrafo.json"))
         client.run()
 
-    for i in range(0, 5):
-        genesis = h.spawn("Genesis" + str(i), PushPeer)
+    for i in range(0, 1):
+        genesis = h.spawn("Genesis" + str(i), PushPullPeer)
         genesis.set_download_folder("Genesis" + str(i))
         genesis.add_torrent(Torrent("palabra.json"))
         genesis.add_torrent(Torrent("frase.json"))
